@@ -1,0 +1,92 @@
+﻿.glt-elm {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 250px;
+	color: #fff;
+	font-family: Arial, sans-serif;
+	font-size: 10pt;
+	line-height: 50%;
+	opacity: 0.9;
+	visibility: hidden;
+	text-align:left;
+}
+.glt-elm p {
+ 	background: #666;
+ 	margin: 0;
+ 	padding: 0.5em;
+	text-indent : 0in;
+	line-height: 12pt;
+}
+.glt-elm img {
+ 	display: block;
+}
+/* and this CSS for IE, if you want to use transparency: */
+.glt-elm {
+ 	filter:progid:DXImageTransform.Microsoft.Alpha(opacity=90);
+}
+
+/*misc CSS for global suggestion form*/
+.SuggestSpan {
+	position:relative;
+	color:#f1e63e;
+	top:2px;
+	font-weight:normal;
+}
+.SuggestLink {
+	cursor:pointer;
+}
+.SuggResponse {
+	margin-right:5px;
+	width:40px;
+	text-align:right;
+}
+.tblSuggestion {
+	margin-left: 3px;
+	margin-top: 3px;
+}
+.tblSuggestion td {
+	vertical-align:top;				
+	font-weight:bold;
+	color:#ed6f31;
+	font-size:10pt;
+}
+.tblSuggestion input, textarea {
+	background-color:#efefef;
+	width:100%;
+	font:9pt ms sans serif, arial, helvetica;
+}
+.tblSuggestion input.btn { 
+	color:#ffffff; 
+	padding:0;
+	border:0;
+	height:18px;
+	font: bold 84% tahoma,helvetica,arial,sans-serif; 
+	width:80px;
+	cursor:pointer;
+	background-image:url('/images/gradbluebg.gif');
+	background-repeat:repeat-x;
+	margin:2px;
+}
+.tblComment input.btnhov { 
+	background-image:url('/images/gradorangebg.gif');
+}
+.divSuggestion {
+	position:absolute;
+	z-index:100;
+	width:335px;
+	border: thin outset gray;
+	margin-right:0px;
+	padding-right:0px;
+	background-color:#404040; 
+}
+.divSuggestion .divTitle {
+	padding:3px;
+	color:white;
+}
+
+span {
+	display:-moz-inline-box; /* Gecko proprietary */
+	display:inline-block;
+	vertical-align:top; /* Gecko needs this */
+}

@@ -1,0 +1,919 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<!--
+	Title:	Magic SharePoint Code Generator v.5.2
+	Author: Brett Hacker, devconcept.net, 12/9/2009
+	Notes:	This application leverages the metadata within SharePoint
+			to initialize a basic HTML page with pre-coded insert/update/delete operations
+			using SharePoint web services.
+			This file should have been included in a ZIP archive with a readme
+			and and supporting web service javascript library files.
+			The original is available at http://www.devconcept.net/magicsharepoint.
+			Thanks to Darren Johnstone and his SPAPI libraries, which have been modified in this release.
+			Any bugs introduced into those include files are my own ;)
+			
+			Please keep the comments in any generated HTML. Thanks.
+	-->
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<script language="javascript" src="Common/SPAPI_Core.js" type="text/javascript"></script>
+	<script language="javascript" src="Common/SPAPI_Lists.js" type="text/javascript"></script>
+	<script language="javascript" src="Common/SPAPI_Webs.js" type="text/javascript"></script>
+	<script language="javascript" src="Common/date-functions.js" type="text/javascript"></script>
+	<script language="javascript" src="Common/MagicLib.js" type="text/javascript"></script>
+	<style type="text/css">
+	BODY {font:9pt ms sans serif;background:buttonface}
+	TD {font:9pt ms sans serif; font-weight:bold}
+	INPUT {font:9pt ms sans serif}
+	BUTTON {font:9pt ms sans serif;width:90px;}
+	.AdminWait {visibility:hidden;padding:0;margin:0;}
+	</style>
+	<title>DevConcept - SharePoint Magic Code Generator</title>
+</head>
+<body>
+<table id="tblTools">
+<tr>
+	<td align="left">Sites<br/>
+	<select id="selSites" size="7" onchange="loadLists(this.value);"></select>
+	</td>
+	<td align="left">Lists<br/>
+	<select id="selLists" size="7" onchange="GetOutput();" style="width:170px">
+	</select>
+	</td>
+	<td valign="top" style="font-weight:normal" rowspan="3">
+	<div style="background-color:#5a5a5a;color:white;padding:4px;font:10pt verdana; font-weight:bold;margin-left:10px;">MagicSharePoint Code Generator</div>
+	<div style="background-color:white;border:1px solid black;padding:7px;margin-left:10px;">
+	Select a site, and a selection of lists and libraries will display under "Lists". Select a list, and code will be generated in the window below.
+	<br/><br/>
+	Toggle between "View Results" and "Render Page" to see the generated code run. Clicking "Render Page" actually copies the file to SharePoint, in the same directory
+	as this file is located, and named "testfile.htm". Editing that file in the "View Results" box, and clicking "Render Page" again, will push your changes to the test
+	file again. Once you are satisfied with the test file, copy the file to its permanent destination using Designer. (Extended copy operations will be available 
+	with this tool in a future version.)
+	<br/><br/>
+	<b>WARNING:</b> this tool generates CODE. That code can modify your SharePoint lists, possibly causing loss of data. Not every possible scenario may have been
+	accounted for in the development of this tool. This tool is intended to help jump start your development but <b>completely test every line of the generated
+	code in a test environment to be sure it does what you want</b>. There is NO WARRANTY expressed or implied,	and use of this tool <b>can</b> cause data 
+	loss, job loss, divorce, and starvation. <b>USE AT YOUR OWN RISK</b>.
+	</div>
+	</td>
+</tr>
+<tr>
+	<td colspan="2">Site Base URL<br/>
+	<input type="text" id="BaseURL" size="50" readonly="readonly" style="background-color:#efefef;"/>
+	</td>
+</tr>
+<tr>
+	<td style="vertical-align: bottom;" colspan="2">
+		<img align="right" alt="Working..." src='Common/Images/ajax-loader.gif' class='AdminWait' id='imgAdminWait'//>
+		<button onclick="GetOutput()">Refresh Code</button>
+		<button onclick="showit('divTextResults')">View Results</button>
+		<button onclick="loadpage()">Render Page</button>
+	</td>
+</tr>
+</table>
+<table width="100%">
+<tr>
+	<td>
+		<div id="divTextResults">
+		<textarea id="PageOutput" style="width:100%;"></textarea>
+		</div>
+		<div id="divRenderResults" style="display:none">
+		<iframe id="frPageRender" src="about:blank" width="100%"></iframe>
+		</div>
+	</td>
+</tr>
+<tr>
+	<td align="center" nowrap>
+		<button style="margin-left:100px" onClick="ClearText()">Clear</button>
+	</td>
+</tr>
+</table>
+<div style="border:1px inset;height:18px;width:99%;position:absolute;" id="oStatus"></div>
+
+<script language="javascript" type="text/javascript">
+var CrLf=String.fromCharCode(13,10);
+var oSites=document.getElementById("selSites");
+var oLists=document.getElementById("selLists");
+var oTextResults=document.getElementById("divTextResults");
+var oRenderResults=document.getElementById("divRenderResults");
+var xFields;
+var sRootFolder;
+var sCurrLogin, sCurrName;
+var sSite, sList;
+var bDebug=true;
+var sJavascript;
+var sJSFormStartup;
+var table_name;
+
+function Init() {
+	if (!testIt()) {
+		alert("You must install the supporting directories as specified in the readme.txt file before trying to use this tool. See http://www.devconcept.net for more information.");
+		return;
+	}
+	sizeIt();
+	jsGetCurrLogin();
+	loadSites("");
+	var sLast=GetCookie2("LastSite");
+	if (sLast) {
+		for(w=0;w<oSites.options.length;w++) {
+			if (oSites.options[w].value==sLast) {
+				oSites.selectedIndex=w;
+				break;
+			}
+		}
+	}
+	else {
+		oSites.selectedIndex=0;
+	}
+	loadLists(oSites.value);
+}
+function testIt() {
+	try {
+		var lists=new SPAPI_Lists(sSite);
+		return true;
+	}
+	catch(e) {
+		return false;
+	}
+}
+function sizeIt() {
+	var iHeight=WindowHeight();
+	oStatus.style.top=iHeight-oStatus.offsetHeight + "px";
+	oStatus.style.left="0px";
+	var sHeight=iHeight-document.getElementById("tblTools").offsetHeight - 80 + "px";
+	document.getElementById("PageOutput").style.height=sHeight;
+	document.getElementById("frPageRender").style.height=sHeight;
+}
+window.onresize=sizeIt;
+
+function showit(p) {
+	oTextResults.style.display="none";
+	oRenderResults.style.display="none";
+	document.getElementById(p).style.display="block";
+}
+function loadpage() {
+	savepage("./testfile.htm",document.getElementById("PageOutput").value);
+	document.getElementById("frPageRender").src="testfile.htm";
+	showit("divRenderResults");
+}
+function savepage(fileNameAndPath, attachment) {
+	var oCore=new SPAPI_Core();
+	var oXMLHttpRequest = oCore.createXMLHttpRequest();
+	oXMLHttpRequest.open("PUT",fileNameAndPath,false)
+	oXMLHttpRequest.send(attachment);
+}
+function loadSites(sRoot) {
+	while (oSites.options.length>0) oSites.options.remove(0);
+	var webs=new SPAPI_Webs(sRoot);
+	var items=webs.getAllSubWebCollection();
+	if (items.status == 200) {
+		var rows = items.responseXML.getElementsByTagName('Web');
+		var oOption;
+		for (iCurrRow=0; iCurrRow<rows.length; iCurrRow++) {
+			oOption=document.createElement("OPTION");
+			oOption.text=rows[iCurrRow].getAttribute("Title");
+			oOption.value=rows[iCurrRow].getAttribute("Url");
+			oOption.title=oOption.value;
+			oSites.add(oOption);
+		}
+	}
+	else {
+		alert('Error getting list: ' + items.statusText + "\n" + items.responseXML.xml);
+	}
+}
+function loadLists(sSite) {
+	document.getElementById('BaseURL').value=sSite;
+	SetCookie2("LastSite",sSite);
+	while (oLists.options.length>0) oLists.options.remove(0);
+	var lists=new SPAPI_Lists(sSite);
+	var items=lists.getListCollection();
+	if (items.status == 200) {
+		var rows = items.responseXML.getElementsByTagName('List');
+		var oOption, sPath;
+		for (iCurrRow=0; iCurrRow<rows.length; iCurrRow++) {
+			oOption=document.createElement("OPTION");
+			sPath=rows[iCurrRow].getAttribute("DefaultViewUrl");
+			sPath=sPath.replace(sPath.split("/")[sPath.split("/").length-1],"");
+			oOption.text=rows[iCurrRow].getAttribute("Title");
+			oOption.value=sPath;
+			oOption.title=rows[iCurrRow].getAttribute("Description");
+			oLists.add(oOption);
+		}
+	}
+	else {
+		alert('Error getting list: ' + items.statusText + "\n" + items.responseXML.xml);
+	}
+}
+function GetOutput() {
+	AJAXActivity(true);
+	showit('divTextResults');
+	sSite=oSites.value;
+	if (oLists.selectedIndex<0) {
+		alert("Please select a list");
+		return;
+	}
+	sList=oLists.options(oLists.selectedIndex).text;
+	document.getElementById("PageOutput").wrap="off";
+	GetFields();
+	var strOutput=MagicSharePoint(); 
+	document.getElementById('PageOutput').value=strOutput;
+	document.getElementById('oStatus').innerHTML="Code generated";
+	AJAXActivity(false);
+}
+function GetFields() {
+	var lists=new SPAPI_Lists(sSite);
+	var items=lists.getList(sList);
+	if (items.status == 200) {
+		sRootFolder=items.responseXML.getElementsByTagName('List')[0].getAttribute("RootFolder");
+		xFields = items.responseXML.selectNodes("soap:Envelope/soap:Body/GetListResponse/GetListResult/List/Fields/Field");
+	}
+	else {
+		alert('Error getting list: ' + items.statusText + "\n" + items.responseXML.xml);
+	}
+}
+
+function MagicSharePoint() {
+	var sName;
+	var sUser=(trim(sCurrName).length>0) ? sCurrName : sCurrLogin;
+	table_name=oLists.options(oLists.selectedIndex).text.replace(/ /g,"_");
+	var s=new Object();
+	s.s="";
+	sJavascript="";
+	sJSFormStartup="";
+	var sIgnoreFields="ID,Attachments";	//see line 662 for the corollary exclusion
+	
+	WriteLine(s, "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">");
+	WriteLine(s, "<html xmlns=\"http://www.w3.org/1999/xhtml\">");
+	WriteLine(s, "<head>");
+	WriteLine(s, "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />");
+	WriteLine(s, "	<title>" + table_name + "</title>");
+
+	WriteLine(s, "	<!--");
+	WriteLine(s, "	**************************************************************");
+	WriteLine(s, "	******* Name: " + table_name + ".htm");
+	WriteLine(s, "	******* Created on: " + new Date().toLocaleString());
+	WriteLine(s, "	******* Author: " + sUser);
+	WriteLine(s, "	******* Generated by:");
+	WriteLine(s, "	*******		MagicSharePoint");
+	WriteLine(s, "	*******		http://www.devconcept.net/magicsharepoint");
+	WriteLine(s, "	*******		brett@thehacker.com");
+	WriteLine(s, "	******* Comments:");
+	WriteLine(s, "	*******");
+	WriteLine(s, "	**************************************************************");
+	WriteLine(s, "	-->");
+	WriteLine(s, "	<scr" + "ipt language=\"javascript\" src=\"Common/SPAPI_Core.js\" type=\"text/javascript\"></scr" + "ipt>");
+	WriteLine(s, "	<scr" + "ipt language=\"javascript\" src=\"Common/SPAPI_Lists.js\" type=\"text/javascript\"></scr" + "ipt>");
+	WriteLine(s, "	<scr" + "ipt language=\"javascript\" src=\"Common/MagicLib.js\" type=\"text/javascript\"></scr" + "ipt>");
+	WriteLine(s, "	<scr" + "ipt language=\"javascript\" src=\"Common/date-functions.js\" type=\"text/javascript\"></scr" + "ipt>");
+	WriteLine(s, "	<scr" + "ipt language=\"javascript\" src=\"Common/calendarcontrol.js\" type=\"text/javascript\"></scr" + "ipt>");
+	WriteLine(s, "	<scr" + "ipt language=\"javascript\" src=\"Common/tooltip.js\" type=\"text/javascript\"></scr" + "ipt>");
+	WriteLine(s, "");
+	WriteLine(s, "	<link rel=\"stylesheet\" href=\"Common/calendarcontrol.css\" type=\"text/css\"/>");
+	WriteLine(s, "	<link rel=\"stylesheet\" href=\"Common/Magic.css\" type=\"text/css\"/>");
+	WriteLine(s, "	<link rel=\"stylesheet\" href=\"Common/tooltip.css\" type=\"text/css\"/>");
+	WriteLine(s, "	</head>");
+	WriteLine(s, "<body>");
+
+	//debugger;
+	
+	WriteLine(s, "<table id='tblDetail'>");
+	WriteLine(s, "<tr>");
+	WriteLine(s, "	<td class='head'><div style='float:left' class='head'>" + sList + "</div>");
+	WriteLine(s, "	<div style='float:right'><input type='button' value='New' onclick='o" + table_name + ".Edit(\"New\");'/>");
+	WriteLine(s, "	<img alt='Working' src='common/images/ajax-loader.gif' class='AdminWait' id='imgAdminWait'/></div>");
+	WriteLine(s, "	</td>");
+	WriteLine(s, "</tr>");
+	WriteLine(s, "</table>");
+	
+	WriteLine(s, "<scr" + "ipt language='javascript' type='text/javascript'>");
+	WriteLine(s, "var sID;");
+	WriteLine(s, "var o" + table_name + ";");
+	WriteLine(s, "");
+
+	WriteLine(s, "function " + table_name + "Init() {");
+	WriteLine(s, "	sID=queryString('id');");
+	WriteLine(s, "	o" + table_name + "=new " + table_name + "();");
+	WriteLine(s, "	o" + table_name + ".Init();");
+	WriteLine(s, "}");
+	WriteLine(s, "");
+	
+	WriteLine(s, "function " + table_name + "() {");
+	WriteLine(s, "	var oDetail;");
+	WriteLine(s, "	var lists;");
+	WriteLine(s, "	var sSite='" + sSite + "';");
+	WriteLine(s, "	var sList='" + sList + "';");
+	WriteLine(s, "");
+
+	//***Init***
+	WriteLine(s, "	this.Init=function() {");
+	WriteLine(s, "		oDetail=document.getElementById('tblDetail');");
+	WriteLine(s, "		lists = new SPAPI_Lists(sSite);");
+	WriteLine(s, "		this.GetDetails();");
+	WriteLine(s, "		initDragDrop();");
+	WriteLine(s, "	}");
+
+	//***GetDetails***
+	WriteLine(s, "	this.GetDetails=function() {");
+	WriteLine(s, "		AJAXActivity(true);");
+	WriteLine(s, "		while(oDetail.rows.length>1) oDetail.deleteRow(1);");
+	WriteLine(s, "");
+	WriteLine(s, "		var sQuery = \"<Query>\";");
+	WriteLine(s, "		//sQuery+=\"<OrderBy><FieldRef Name ='Title'/></OrderBy>\";");
+	WriteLine(s, "		sQuery+=\"</Query>\";");
+	
+	//load ViewFields
+	var sViewFields="		var sViewFields = \"<ViewFields>";
+	for(x=0;x<xFields.length;x++) {
+		if (xFields[x].getAttribute("Hidden")=="TRUE" || xFields[x].getAttribute("Type")=="Computed") continue;
+		sViewFields+="<FieldRef Name='" + xFields[x].getAttribute("Name") + "'/>";
+	}
+	sViewFields+="</ViewFields>\";";
+	WriteLine(s, sViewFields);
+	WriteLine(s, "		lists.setupCallback('o" + table_name + ".DetailCallback');");
+	WriteLine(s, "		lists.getListItems(sList,'',sQuery, sViewFields);");
+	WriteLine(s, "	}");
+	WriteLine(s, "	this.DetailCallback=function(items) {");
+	WriteLine(s, "		if (items.status == 200) {");
+	WriteLine(s, "");
+	WriteLine(s, "			var rows = items.responseXML.getElementsByTagName('z:row');");
+	WriteLine(s, "			//debugger;");
+	WriteLine(s, "			if (rows.length==0) {");
+	WriteLine(s, "				var oRow=oDetail.insertRow(-1);");
+	WriteLine(s, "				oRow.insertCell(-1).innerHTML='No items in this list';");
+	WriteLine(s, "				AJAXActivity(false);");
+	WriteLine(s, "				return;");
+	WriteLine(s, "			}");
+	WriteLine(s, "			for (x=0;x<rows.length;x++) {");
+	WriteLine(s, "				this.loadItem(rows[x]);");
+	WriteLine(s, "			}");
+	WriteLine(s, " 		}");
+	WriteLine(s, "		else {");
+	WriteLine(s, "			throw new Error('Error getting list: ' + items.statusText + '\\n' + items.responseXML.xml);");
+	WriteLine(s, "		}");
+	WriteLine(s, "		AJAXActivity(false);");
+	WriteLine(s, "	}");
+	WriteLine(s, "");
+	
+	//***loadItem***
+	WriteLine(s, "	this.loadItem=function(currRow) {");
+	WriteLine(s, "		var oRow, oCell;");
+	WriteLine(s, "		var s='';");
+	WriteLine(s, "		var oTable=document.createElement('TABLE');");
+	WriteLine(s, "		oTable.width='100%'");
+	WriteLine(s, "");
+
+	//load columns
+	var item;
+	var iColCount=0;
+	WriteLine(s, "		oRow=oTable.insertRow(-1);");
+	WriteLine(s, "		oCell=oRow.insertCell(-1);");
+	WriteLine(s, "		oCell.colSpan=3;");
+	WriteLine(s, "		oCell.setAttribute('ItemID',currRow.getAttribute('ows_ID'));");
+	WriteLine(s, "		oCell.className='itemHead';");
+	WriteLine(s, "		oCell.innerHTML=currRow.getAttribute('ows_Title') + '&nbsp;';");
+	WriteLine(s, "		oCell.onclick=function() {");
+	WriteLine(s, "			o" + table_name + ".Edit('Edit',this.getAttribute('ItemID'));");
+	WriteLine(s, "		}");
+	WriteLine(s, "		oRow=oTable.insertRow(-1);");
+
+	for(x=0;x<xFields.length;x++) {
+		item=xFields[x];
+		if (item.getAttribute("Hidden")=="TRUE" || item.getAttribute("Name")=="Title" || sIgnoreFields.indexOf(item.getAttribute("Name"))>-1 || item.getAttribute("Type")=="Computed") continue;
+		iColCount++;
+		if (iColCount>2) {
+			iColCount=0;
+			WriteLine(s, "		oRow=oTable.insertRow(-1);");
+		}
+		WriteLine(s, "		oCell=oRow.insertCell(-1);");
+		if (item.getAttribute("Type")=="DateTime") WriteLine(s, "		s=SP2NormalDate(currRow.getAttribute('ows_" + item.getAttribute("Name") + "'));");
+		else WriteLine(s, "		s=WriteAttribute(currRow.getAttribute('ows_" + item.getAttribute("Name") + "'),'');");
+		WriteLine(s, "		oCell.innerHTML='<div class=\"label\">" + item.getAttribute("DisplayName") + "</div>' + s;");
+		WriteLine(s, "");
+	}
+	WriteLine(s, "	oRow=oDetail.insertRow(-1);");
+	WriteLine(s, "	oCell=oRow.insertCell(-1);");
+	WriteLine(s, "	var oDiv=document.createElement('DIV');");
+	WriteLine(s, "	oDiv.className='itemDiv';");
+	WriteLine(s, "	oCell.appendChild(oDiv);");
+	WriteLine(s, "	oDiv.appendChild(oTable);");
+	WriteLine(s, "	}");
+
+	//***GetItem***
+	WriteLine(s, "	this.GetItem=function(sID) {");
+	WriteLine(s, "		var sQuery = \"<Query><Where><Eq><FieldRef Name='ID' /><Value Type='Number'>\" + sID + \"</Value></Eq></Where></Query>\";");
+	WriteLine(s, sViewFields);
+	WriteLine(s, "		lists.setupCallback('');");
+	WriteLine(s, "		items=lists.getListItems(sList,'',sQuery, sViewFields);");
+	WriteLine(s, "		if (items.status == 200) {");
+	WriteLine(s, "");
+	WriteLine(s, "			var rows = items.responseXML.getElementsByTagName('z:row');");
+	WriteLine(s, "			return (rows.length>0) ? rows[0] : null;");
+	WriteLine(s, " 		}");
+	WriteLine(s, "		else {");
+	WriteLine(s, "			throw new Error('Error getting list: ' + items.statusText + '\\n' + items.responseXML.xml);");
+	WriteLine(s, "		}");
+	WriteLine(s, "	}");
+	WriteLine(s, "");
+
+	//***Edit***
+	WriteLine(s, "	this.Edit=function(sType, sID) {");
+	WriteLine(s, "		var oRow, oCell, s;");
+
+	var sVarList="		var ";
+	var iVarCount=0;
+	for(x=0;x<xFields.length;x++) {
+		item=xFields[x];
+		if (item.getAttribute("Hidden")=="TRUE" || item.getAttribute("Type")=="Computed" || item.getAttribute("Name")=="ID") continue;
+		iVarCount++;
+		if (iVarCount>9) {
+			iVarCount=0;
+			WriteLine(s, sVarList.substr(0,sVarList.length-2) + ";");
+			sVarList="		var ";
+		}
+		sVarList+="s" + item.getAttribute("Name") + "='', ";
+	}
+	if (right(sVarList,2)==", ") WriteLine(s, sVarList.substr(0,sVarList.length-2) + ";");
+	WriteLine(s, "");
+
+	WriteLine(s, "		var oDiv=FormShell(sType + ' " + sList + "',600);");
+	WriteLine(s, "		oDiv.id='div" + table_name + "Edit';");
+
+	WriteLine(s, "		if (sType=='Edit') {");
+	WriteLine(s, "			var rowItem=o" + table_name + ".GetItem(sID);");
+
+	for(x=0;x<xFields.length;x++) {
+		item=xFields[x];
+		sName=item.getAttribute("Name");
+		sType=item.getAttribute("Type");
+		if (item.getAttribute("Hidden")=="TRUE" || item.getAttribute("ReadOnly")=="TRUE" || sIgnoreFields.indexOf(sName)>-1 || sType=="Computed") continue;
+
+		switch(sType) {
+			case "DateTime":
+				WriteLine(s, "			s" + sName + "=SP2NormalDate(rowItem.getAttribute('ows_" + sName + "'),'');");
+				break;
+			default:
+				WriteLine(s, "			s" + sName + "=WriteAttribute(rowItem.getAttribute('ows_" + sName + "'),'');");
+				break;
+		}
+	}
+
+	WriteLine(s, "			var oIDField=document.createElement('INPUT');");
+	WriteLine(s, "			oIDField.id='ItemID';");
+	WriteLine(s, "			oIDField.type='hidden';");
+	WriteLine(s, "			oIDField.value=rowItem.getAttribute('ows_ID');");
+	WriteLine(s, "			oDiv.appendChild(oIDField);");
+	WriteLine(s, "		}");
+	
+	WriteLine(s, "		var oTable=oDiv.getElementsByTagName('TABLE')[0];");
+	WriteLine(s, "");
+
+	var item;
+	var iColCount=0;
+	WriteLine(s, "		oRow=oTable.insertRow(-1);");
+	var sField;
+	var sFirstField="";
+	for(x=0;x<xFields.length;x++) {
+		item=xFields[x];
+		if (item.getAttribute("Hidden")=="TRUE" || item.getAttribute("ReadOnly")=="TRUE" || sIgnoreFields.indexOf(item.getAttribute("Name"))>-1 || item.getAttribute("Type")=="Computed") continue;
+		if (sFirstField.length==0) sFirstField=item.getAttribute("Name");
+		iColCount++;
+		if (iColCount>2) {
+			iColCount=0;
+			WriteLine(s, "		oRow=oTable.insertRow(-1);");
+		}
+		if (item.getAttribute("Type")=="Note") {
+			iColCount=3;
+			WriteLine(s, "		oRow=oTable.insertRow(-1);");
+			WriteLine(s, "		oCell=oRow.insertCell(-1);");
+			WriteLine(s, "		oCell.colSpan=3");
+		}
+		else {
+			WriteLine(s, "		oCell=oRow.insertCell(-1);");
+		}
+		
+		sField=GetFieldHTML(item);
+				
+		WriteLine(s, "		oCell.innerHTML=\"" + sField + "\";");
+		WriteLine(s, "");
+	}
+
+	WriteLine(s, "		oTR=oTable.insertRow(-1);");
+	WriteLine(s, "		oTD=oTR.insertCell(-1);");
+	WriteLine(s, "		oTD.colSpan=3;");
+	WriteLine(s, "		oTD.style.textAlign='right';");
+	WriteLine(s, "		s=\"<input type='button' class='btn' onmouseover='this.className=\\\"btn btnhov\\\"' onmouseout='this.className=\\\"btn\\\"' DivID='\" + oDiv.id + \"' id='btn" + table_name + "Save' title='Save' onclick='o" + table_name + ".Save(\\\"\" + sType + \"\\\");' value='Save'>\";");
+	WriteLine(s, "		if (sType=='Edit') s+=\"<input type='button' class='btn' onmouseover='this.className=\\\"btn btnhov\\\"' onmouseout='this.className=\\\"btn\\\"' title='Delete' onclick='o" + table_name + ".Delete();' value='Delete'>\";");
+	WriteLine(s, "		s+=\"<input type='button' class='btn' onmouseover='this.className=\\\"btn btnhov\\\"' onmouseout='this.className=\\\"btn\\\"' DivID='\" + oDiv.id + \"' title='Cancel' onclick='FormCancel(event);' value='Cancel'>\";");
+	WriteLine(s, "		oTD.innerHTML=s;");
+	WriteLine(s, "");
+	WriteLine(s, "		oDiv.getElementsByTagName('IMG')[0].setAttribute('DivID',oDiv.id);");
+	WriteLine(s, "		oDiv.getElementsByTagName('IMG')[0].onclick=FormCancel;");
+	WriteLine(s, "		ShowForm(oDiv);");
+	WriteLine(s, "		//debugger;");
+	
+	if (sJSFormStartup.length>0) WriteLine(s, sJSFormStartup);
+
+	WriteLine(s, "");
+	WriteLine(s, "		document.getElementById('" + sFirstField + "').focus();");
+	WriteLine(s, "	}");
+	
+	//***Save***
+	WriteLine(s, "	this.Save=function(sType) {");
+	WriteLine(s, "		var lists = new SPAPI_Lists(sSite);");
+	WriteLine(s, "		var sID;");
+	WriteLine(s, "		if (sType=='Edit') sID=document.getElementById('ItemID').value;");
+	var sFields="", sName, sType;
+	for(x=0;x<xFields.length;x++) {
+		item=xFields[x];
+		sType=item.getAttribute("Type");
+		if (item.getAttribute("Hidden")=="TRUE" || item.getAttribute("ReadOnly")=="TRUE" || sIgnoreFields.indexOf(item.getAttribute("Name"))>-1 || sType=="Computed") continue;
+		sName=item.getAttribute("Name");
+		sFields+="s" + sName + ", ";
+		switch(sType) {
+			case "DateTime":
+				WriteLine(s, "		var sDate=document.getElementById('" + sName + "').value;");
+				WriteLine(s, "		var s" + sName + "=new Date(sDate).dateFormat(Date.patterns.ISO8601LongPattern);");
+				break;
+			default:
+				WriteLine(s, "		var s" + sName + "=document.getElementById('" + sName + "').value;");
+				break;			
+		}
+	}
+	
+	sFields=sFields.substr(0,sFields.length-2);
+	WriteLine(s, "		var fields = new o" + table_name + ".ItemFields(sID, sType, " + sFields + ");");
+	WriteLine(s, "		var res;");
+	WriteLine(s, "		AJAXActivity(true);");
+	WriteLine(s, "		lists.setupCallback('o" + table_name + ".SaveCallback');");
+	WriteLine(s, "		if (sType=='Edit') {");
+	WriteLine(s, "			lists.quickUpdateListItem(sList, fields);");
+	WriteLine(s, "		}");
+	WriteLine(s, "		else {");
+	WriteLine(s, "			lists.quickAddListItem(sList, fields);");
+	WriteLine(s, "		}");
+	WriteLine(s, "	}");
+
+	WriteLine(s, "	this.SaveCallback=function(res) {");
+	WriteLine(s, "		AJAXActivity(true);");
+	WriteLine(s, "		var oDiv=document.getElementById('div" + table_name + "Edit')");
+	WriteLine(s, "		oDiv.parentNode.removeChild(oDiv);");
+	WriteLine(s, "		if (res.status == 200) {");
+	WriteLine(s, "			o" + table_name + ".GetDetails();");
+	WriteLine(s, " 		}");
+	WriteLine(s, "		else {");
+	WriteLine(s, "			throw new Error('Error saving item: ' + items.statusText + '\\n' + items.responseXML.xml);");
+	WriteLine(s, "		}");
+	WriteLine(s, "	}");
+	
+	WriteLine(s, "	this.Delete=function() {");
+	WriteLine(s, "		if (!confirm('Delete this record?')) return;");
+	
+	WriteLine(s, "		AJAXActivity(true);");
+	WriteLine(s, "		var lists = new SPAPI_Lists(sSite);");
+	WriteLine(s, "		var sID=document.getElementById('ItemID').value;");
+	WriteLine(s, "		lists.setupCallback('o" + table_name + ".DelCallback');");
+	WriteLine(s, "		lists.quickDeleteListItem(sList, sID);");
+	WriteLine(s, "	}");
+
+	WriteLine(s, "	this.DelCallback=function(res) {");
+	WriteLine(s, "		var oDiv=document.getElementById('div" + table_name + "Edit')");
+	WriteLine(s, "		oDiv.parentNode.removeChild(oDiv);");
+	WriteLine(s, "		if (res.status == 200) {");
+	WriteLine(s, "			o" + table_name + ".GetDetails();");
+	WriteLine(s, " 		}");
+	WriteLine(s, "		else {");
+	WriteLine(s, "			throw new Error('Error deleting item: ' + items.statusText + '\\n' + items.responseXML.xml);");
+	WriteLine(s, "		}");
+	WriteLine(s, "	}");
+
+	//***ItemFields***
+	WriteLine(s, "	this.ItemFields=function(sID, sType, " + sFields + ") {");
+	
+	WriteLine(s, "		if (sType=='Edit') this.ID=sID;");
+
+	for(x=0;x<xFields.length;x++) {
+		item=xFields[x];
+		if (item.getAttribute("Hidden")=="TRUE" || sIgnoreFields.indexOf(item.getAttribute("Name"))>-1 || item.getAttribute("ReadOnly")=="TRUE" || item.getAttribute("Type")=="Computed") continue;
+		WriteLine(s, "		this." + item.getAttribute("Name") + " = s" + item.getAttribute("Name") + ";");
+	}
+
+	WriteLine(s, "	}");
+
+	if (sJavascript.length>0) WriteLine(s, sJavascript);
+
+	WriteLine(s, "}");
+	WriteLine(s, "");
+	
+	WriteLine(s, "// ***initialize***");
+	WriteLine(s, "try {");
+	WriteLine(s, "	_spBodyOnLoadFunctionNames.push('" + table_name + "Init');");
+	WriteLine(s, "}");
+	WriteLine(s, "catch(e) {");
+	WriteLine(s, "	" + table_name + "Init();");
+	WriteLine(s, "}");
+
+	WriteLine(s, "</scr" + "ipt>");
+
+	WriteLine(s, "</body>");
+
+	return s.s;
+}
+
+function GetFieldHTML(item) {
+	var sType=item.getAttribute("Type");
+	var sDisplayName=item.getAttribute("DisplayName");
+	var sName=item.getAttribute("Name");
+	var bRequired=item.getAttribute("Required");
+	var sMaxLength=item.getAttribute("MaxLength");
+	var sHTML="";
+
+	switch(sType) {
+		case "DateTime":
+			sHTML+=sDisplayName + ":<br>";
+			sHTML+="<input onfocus='showCalendarControl(this);' type='text' value='\" + s" + sName + " + \"' name='" + sName + "' id='" + sName + "' size='12'>";
+			break;
+		case "File":
+		case "URL":
+		case "Text":
+			sHTML+=sDisplayName + ":<br><input type='text' value='\" + s" + sName + " + \"' maxlength='" + sMaxLength + "' name='" + sName + "' id='" + sName + "' size='20'>";
+			break;
+		case "Note":
+			sHTML+=sDisplayName + ":<br><textarea name='" + sName + "' id='" + sName + "' style='width:90%' rows='4'>\" + s" + sName + " + \"</textarea>";
+			break;
+		case "Currency":
+		case "Integer":
+		case "Number":
+			var sMin=item.getAttribute("Min");
+			var sMax=item.getAttribute("Max");
+			sHTML+=sDisplayName + ":<br><input type='text' ";
+			if (sMin || sMax) sHTML+=" onchange='oLib.testNumber(this," + sMin + ", " + sMax + ");'";
+			sHTML+=" name='" + sName + "' id='" + sName + "' value='\" + s" + sName + " + \"' size='10'>";
+			break;
+		case "Choice":
+			sHTML+=sDisplayName + ":<br>";
+			oChoices=item.getElementsByTagName("CHOICE");
+			sFormat=item.getAttribute("Format");
+			switch(sFormat) {
+				case "RadioButtons":
+					sHTML+=getRadioButtons(oChoices, sName);
+					sJSFormStartup+='		var o' + sName + '=document.getElementsByName("' + sName + '");' + CrLf;
+					sJSFormStartup+='		for(z=0;z<o' + sName + '.length;z++) {' + CrLf;
+					sJSFormStartup+='			if (o' + sName + '[z].value==s' + sName + ') o' + sName + '[z].checked=true;break;' + CrLf;
+					sJSFormStartup+='		}' + CrLf;
+					break;
+				case null:
+				case "Dropdown":
+					sHTML+=getSelect(oChoices, sName);
+					sJSFormStartup+='		var o' + sName + '=document.getElementById("' + sName + '");' + CrLf;
+					sJSFormStartup+='		for(z=0;z<o' + sName + '.options.length;z++) {' + CrLf;
+					sJSFormStartup+='			if (o' + sName + '.options[z].value==s' + sName + ') o' + sName + '.options[z].selected=true;break;' + CrLf;
+					sJSFormStartup+='		}' + CrLf;
+					break;
+				default:
+					if (bDebug) { alert("Unknown format '" + sFormat + "', please debug"); debugger; }
+					sHTML+=getSelect(oChoices, sName);
+					sJSFormStartup+='		var o' + sName + '=document.getElementById("' + sName + '");' + CrLf;
+					sJSFormStartup+='		for(z=0;z<o' + sName + '.options.length;z++) {' + CrLf;
+					sJSFormStartup+='			if (o' + sName + '.options[z].value==s' + sName + ') o' + sName + '.options[z].selected=true;break;' + CrLf;
+					sJSFormStartup+='		}' + CrLf;
+					break;
+			}
+			break;
+		case "Boolean":
+			sHTML+=sDisplayName + ":<br>";
+			sHTML+="		<select id='" + sName + "' name='" + sName + "'>";
+			sHTML+="		<option value=''>Select...</option>";
+			sHTML+="		<option value='1'>True</option>";
+			sHTML+="		<option value='0'>False</option>";
+			sHTML+="		</select>";
+			
+			sJSFormStartup+='		var oSel=document.getElementById("' + sName + '");' + CrLf;
+			sJSFormStartup+='		for(z=0;z<oSel.options.length;z++) {' + CrLf;
+			sJSFormStartup+='			if (oSel.options[z].value==s' + sName + ') oSel.options[z].selected=true;break;' + CrLf;
+			sJSFormStartup+='		}' + CrLf;
+			break;
+		case "MultiChoice":
+			sHTML+=sDisplayName + ":<br>";
+			oChoices=item.getElementsByTagName("CHOICE");
+			sHTML+="<select class='maxi' style='max-width:160px' id='" + sName + "' name='" + sName + "' multiple='multiple' size='3'>" + CrLf;
+			for (i=0;i<oChoices.length;i++) {
+				sOption=(oChoices[i].text || oChoices[i].textContent);
+				sHTML+="<option title='" + sOption+ "' value='" + sOption + "'>" + sOption+ "</option>" + CrLf;
+			}
+			sHTML+="</select>" + CrLf;
+
+			sJSFormStartup+='		var oSel=document.getElementById("' + sName + '")' + CrLf;
+			sJSFormStartup+='		var arr' + sName + '=s' + sName + '.split(";#");' + CrLf;
+			sJSFormStartup+='		for(z=0;z<oSel.options.length;z++) {' + CrLf;
+			sJSFormStartup+='			for (c=0;c<arr' + sName + '.length;c++) {' + CrLf;
+			sJSFormStartup+='				if ((c % 2) == 0) {' + CrLf;
+			sJSFormStartup+='					if (arr' + sName + '[c]==oSel.options[z].value) {oSel.options[z].selected=true;break;}' + CrLf;
+			sJSFormStartup+='				}' + CrLf;
+			sJSFormStartup+='			}' + CrLf;
+
+			sJSFormStartup+='		}' + CrLf;
+			
+			break;
+		case "Attachments": break;
+		
+		case "Lookup":
+		case "LookupMulti":
+			var sSel=(sType=='LookupMulti') ? " multiple size='4'" : "";
+			sHTML+=sDisplayName + ":<br>";
+			sHTML+="<select name='" + sName + "' id='" + sName + "'" + sSel + "></select>";
+
+			var sFKList=getLookupListName(item.getAttribute("List"));
+			var ShowField=item.getAttribute("ShowField");
+
+			sJSFormStartup+='		var arr' + sName + '=s' + sName + '.split(";#");' + CrLf;
+			sJSFormStartup+='		var sQuery = "<Query></Query>";' + CrLf;
+		    sJSFormStartup+='		var sViewFields = "<ViewFields><FieldRef Name=\'' + ShowField + '\'/></ViewFields>";' + CrLf;
+			sJSFormStartup+='		var lists=new SPAPI_Lists(sSite);' + CrLf;
+			sJSFormStartup+='		var items = lists.getListItems("' + sFKList + '","",sQuery, sViewFields);' + CrLf;
+			sJSFormStartup+='		var sText, sID, oOption;' + CrLf;
+			sJSFormStartup+='		if (items.status == 200) {' + CrLf;
+			sJSFormStartup+='			var rows=items.responseXML.getElementsByTagName("z:row");' + CrLf;
+			sJSFormStartup+='			for(y=0;y<rows.length;y++) {' + CrLf;
+			sJSFormStartup+='				sText=rows[y].getAttribute("ows_' + ShowField + '");' + CrLf;
+			sJSFormStartup+='				sID=rows[y].getAttribute("ows_ID");' + CrLf;
+			sJSFormStartup+='				oOption=document.createElement("OPTION");' + CrLf;
+			sJSFormStartup+='				oOption.value=sID;' + CrLf;
+			sJSFormStartup+='				oOption.text=sText;' + CrLf;
+
+			if (sType=='LookupMulti') sJSFormStartup+='				if ((y % 2) == 0) oOption.className = "ms-alternating";' + CrLf;
+			
+			sJSFormStartup+='				for (c=0;c<arr' + sName + '.length;c++) {' + CrLf;
+			sJSFormStartup+='					if ((c % 2) == 0) {' + CrLf;
+			sJSFormStartup+='						if (arr' + sName + '[c]==sID) {oOption.selected=true;break;}' + CrLf;
+			sJSFormStartup+='					}' + CrLf;
+			sJSFormStartup+='				}' + CrLf;
+
+			sJSFormStartup+='				document.getElementById("' + sName + '").add(oOption);' + CrLf;
+			sJSFormStartup+='			}' + CrLf;
+			sJSFormStartup+='		}' + CrLf;
+			sJSFormStartup+='' + CrLf;
+			break;
+		case "User":
+			sHTML+=sDisplayName + ":<br>";
+			sHTML+="<select name='" + sName + "' id='" + sName + "'></select>";
+
+			sJSFormStartup+='		var sQuery = "<Query></Query>";' + CrLf;
+		    sJSFormStartup+='		var sViewFields = "<ViewFields><FieldRef Name=\'Title\'/></ViewFields>";' + CrLf;
+			sJSFormStartup+='		var lists=new SPAPI_Lists("");' + CrLf;
+			sJSFormStartup+='		var items = lists.getListItems("User Information List","",sQuery, sViewFields);' + CrLf;
+			sJSFormStartup+='		var sText, sID, oOption;' + CrLf;
+			sJSFormStartup+='		if (items.status == 200) {' + CrLf;
+			sJSFormStartup+='			var rows=items.responseXML.getElementsByTagName("z:row");' + CrLf;
+			sJSFormStartup+='			for(y=0;y<rows.length;y++) {' + CrLf;
+			sJSFormStartup+='				sText=rows[y].getAttribute("ows_Title");' + CrLf;
+			sJSFormStartup+='				sID=rows[y].getAttribute("ows_ID");' + CrLf;
+			sJSFormStartup+='				oOption=document.createElement("OPTION");' + CrLf;
+			sJSFormStartup+='				oOption.value=sID;' + CrLf;
+			sJSFormStartup+='				oOption.text=sText;' + CrLf;
+			sJSFormStartup+='				if (sText==s' + sName + ') oOption.selected=true;' + CrLf;
+			sJSFormStartup+='				document.getElementById("' + sName + '").add(oOption);' + CrLf;
+			sJSFormStartup+='			}' + CrLf;
+			sJSFormStartup+='		}' + CrLf;
+			sJSFormStartup+='	}' + CrLf;
+			sJSFormStartup+='' + CrLf;
+			break;
+		default:
+			if (bDebug) { alert("Unknown type '" + sType + "', please debug"); debugger; }
+			sHTML+=sDisplayName + ":<br><input type='text' name='" + sName + "' id='" + sName + "' size='10'>";
+			break;
+	}
+	return sHTML;
+}
+function getLookupListName(List) {
+	var lists=new SPAPI_Lists(sSite);
+	var items=lists.getList(List);
+	if (items.status == 200) {
+		var sListName=items.responseXML.getElementsByTagName("List")[0].getAttribute("Title");
+		return sListName;
+	}
+	else {
+		alert('Error getting list: ' + items.statusText + "\n" + items.responseXML.xml);
+	}
+}
+function getRadioButtons(oChoices, sName) {
+	var sOut="";
+	var sOption;
+	for (t=0;t<oChoices.length;t++) {
+		sOption=(!oChoices[t].text) ? oChoices[t].textContent : oChoices[t].text;
+		sOut+="<input class='radio' type='radio' id='" + sName + t + "' name='" + sName + "' value='" + sOption + "'><label for='" + sName + t + "'>" + sOption + "</label> ";
+	}
+	return sOut;
+}
+function getSelect(oChoices, sName) {
+	var sOut="<select class='maxi' style='max-width:160px' name='" + sName + "'>";
+	sOut+="<option value=''>Select...</option>";
+	var sOption;
+	for (t=0;t<oChoices.length;t++) {
+		if (!oChoices[t].text) sOption=oChoices[t].textContent;
+		else sOption=oChoices[t].text;
+		sOut+="<option value='" + sOption + "'>" + sOption + "</option>";
+	}
+	return sOut + "</select>";
+}
+function WriteLine(s,strValue) {
+	s.s+=strValue + CrLf;
+}
+
+function ClearText() {
+	document.getElementById("PageOutput").value="";
+	document.getElementById("frPageRender").src="about:blank";
+	document.getElementById('oStatus').innerHTML="Text Cleared";
+}
+
+//misc
+function jsGetCurrLogin() {
+	//var iUser=_spUserId;	// until I figure out where _spUserId is in Office Live...
+	var iUser=1;
+	var lists = new SPAPI_Lists('');
+	var items = lists.getListItems(
+		'User Information List',
+		'',
+		'<Query><Where><Eq><FieldRef Name="ID"/><Value Type="Counter">' + iUser + '</Value></Eq></Where></Query>',  // query
+		'<ViewFields><FieldRef Name="Name"/><FieldRef Name="Title"/></ViewFields>',
+		1,  // rowLimit
+		''  // queryOptions
+	);
+	if (items.status == 200) {
+		var rows = items.responseXML.getElementsByTagName('z:row');
+		if (rows.length == 1) {
+			sCurrLogin=rows[0].getAttribute('ows_Name');
+			sCurrName=rows[0].getAttribute('ows_Title');
+		}
+	}
+	else {
+		alert('There was an error: ' + items.statusText);
+	}
+}
+
+function SetCookie2 (name, value) {
+	//expires, path, domain, and secure are optional args, in that order
+	var argv = arguments;
+	var argc = arguments.length;
+	var expires = (argc > 2) ? argv[2] : null;
+	var path = (argc > 3) ? argv[3] : null;
+	var domain = (argc > 4) ? argv[4] : null;
+	var secure = (argc > 5) ? argv[5] : false;
+	document.cookie = name + "=" + escape(value) +
+		((expires == null) ? "" : ("; expires=" + expires.toGMTString())) +
+		((path == null) ? "" : ("; path=" + path)) +
+		((domain == null) ? "" : ("; domain=" + domain)) +
+		((secure == true) ? "; secure" : "");
+}
+
+function getCookieVal2 (offset) {
+	var endstr = document.cookie.indexOf (";", offset);
+	if (endstr == -1) endstr = document.cookie.length;
+	return unescape(document.cookie.substring(offset, endstr));
+}
+
+function GetCookie2 (name) {
+	var arg = name + "=";
+	var alen = arg.length;
+	var clen = document.cookie.length;
+	var i = 0;
+	while (i < clen) {
+		var j = i + alen;
+		if (document.cookie.substring(i, j) == arg) return getCookieVal2(j);
+		i = document.cookie.indexOf(" ", i) + 1;
+		if (i == 0) break; 
+	}
+	return null;
+}
+function trim(string) {
+	return string.replace(/^\s+/, '').replace(/\s+$/, '');
+}
+function right(str,n) {
+	//returns the right n characters of str
+	strlen = str.length
+	return str.substring(strlen-n,strlen)
+}
+function WindowHeight() {
+	var myHeight = 0;
+	if(typeof(window.innerWidth) == 'number') {
+		myHeight = window.innerHeight;
+	}
+	else if(document.documentElement && (document.documentElement.clientWidth || document.documentElement.clientHeight)) {
+		myHeight = document.documentElement.clientHeight;
+	}
+	else if(document.body && (document.body.clientWidth || document.body.clientHeight)) {
+		myHeight = document.body.clientHeight;
+	}
+	return myHeight;
+}
+
+// ***initialize***
+try {
+	_spBodyOnLoadFunctionNames.push("Init");
+}
+catch(e) {
+	Init();
+}
+</script>
+
+</body>
+</html>

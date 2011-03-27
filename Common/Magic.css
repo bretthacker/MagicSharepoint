@@ -1,0 +1,213 @@
+﻿#divDashboard {
+	max-height:600px;
+	overflow:auto;
+}
+#tblDetail {width:100%;background-color:#efefef;border:1px solid #242424;}
+#tblDetail td {font:9pt verdana;}
+#tblDetail td div {font-weight:normal;}
+.AdminWait {visibility:hidden;padding:0;margin:0;}
+a {
+	color:#ed6f31;
+}
+.help {
+	font:10pt tahoma;
+	padding:3px;
+	color:white;
+	background:#353535;
+}
+.help td {
+	font:10pt tahoma;
+	padding:3px;
+	color:white;
+	background:#353535;
+}
+.buttonimg {
+	cursor:pointer;
+}
+#divAdminDialog {
+	width:325px;
+	height:170px;
+	position:absolute;
+	z-index:100;
+	border:thin gray inset;
+	background:#C0C0C0;	
+}
+#divAdminDialog table {
+	width:100%;
+}
+#divAdminDialog input.btn { 
+	color:#ffffff; 
+	padding:0;
+	border:0;
+	height:18px;
+	font: bold 84% tahoma,helvetica,arial,sans-serif; 
+	width:72px;
+	cursor:pointer;
+	background-image:url(Images/gradbluebg.gif);
+	background-repeat:repeat-x;
+	margin:2px;
+}
+#divAdminDialog input.btnhov { 
+	background-image:url(Images/gradorangebg.gif);
+}
+.itemHead {background-image:url(Images/GradHead.gif);background-repeat:repeat-x;font-weight:bold!important;border:1px solid #6593CF;padding:3px;cursor:pointer;}
+.itemDiv {padding:3px;margin:4px;border:1px solid navy;background-color:white;}
+#divContentTypeDesc {
+	font:8pt tahoma, arial, helvetica;
+	color:#efefef;
+	width:300px;
+	height:30px;
+}
+#divModInfo {
+	font:9pt verdana;
+	padding:2px;
+}
+#divAdminDialog select {
+	height:90px;
+}
+.title {
+	background-color:#8e8e8e;
+	padding:2px;
+	font:9pt tahoma;
+	font-weight:bold;
+	color:white;	
+}
+div.head, .head {
+	font:10pt tahoma;
+	font-weight:bold!important;
+	background-color:#ffaa59;
+	padding:3px;
+}
+.head td {font:10pt tahoma;font-weight:bold!important;background-color:#ffaa59;padding:3px;}
+.ms-alternating {
+	background-color:#efefef;
+}
+.rowdata td {
+	font:9pt verdana;
+	vertical-align:top;
+	padding:2px;
+	border:0;
+	padding-left:6px;
+}
+.status {
+	background-color:#3d3d3d;
+}
+.status td {
+	color:white;
+	font-weight:bold;
+}
+.hover td {
+	color:white;
+	background-color:#888888;
+	cursor:pointer;
+}
+
+#tblAdminMaster {
+	background-color:#656565;
+}
+#divAdminFrames iframe {
+	display:none;
+	width:100%;
+	height:600px;
+}
+.button {
+	width: 110px;
+	height: 18px;
+	text-align: center;
+	BACKGROUND-COLOR: buttonface;
+	BORDER-BOTTOM: buttonshadow solid 1px;
+	BORDER-LEFT: buttonhighlight solid 1px;
+	BORDER-RIGHT: buttonshadow solid 1px;
+	BORDER-TOP: buttonhighlight solid 1px;
+	font: 9pt ms sans serif;
+	margin : 8px 3px 0px 3px;
+	padding : 1px 1px;
+	cursor : pointer;
+	color : black;
+	float:left;
+}
+
+.buttonhover {
+	color : #ed6f31;
+}
+
+.buttonpress {
+	BACKGROUND-COLOR: #cccccc;
+	BORDER-BOTTOM: buttonhighlight solid 1px;
+	BORDER-LEFT: buttonshadow solid 1px;
+	BORDER-RIGHT: buttonhighlight solid 1px;
+	BORDER-TOP: buttonshadow solid 1px;
+	color : #ed6f31;
+}
+
+.buttonpresshover {
+	BACKGROUND-COLOR: buttonface;
+	BORDER-BOTTOM: buttonhighlight solid 1px;
+	BORDER-LEFT: buttonshadow solid 1px;
+	BORDER-RIGHT: buttonhighlight solid 1px;
+	BORDER-TOP: buttonshadow solid 1px;
+	color : #ed6f31;
+}
+label {
+	cursor:pointer;
+}
+.label {
+	font-weight:bold!important;
+}
+/*misc CSS for global forms*/
+.tblForm {
+	margin-left: 3px;
+	margin-top: 3px;
+}
+.tblForm td {
+	vertical-align:top;				
+	font-weight:bold;
+	color:#ed6f31;
+	font:10pt ms sans serif, arial, helvetica;
+}
+.tblForm input, textarea, select {
+	background-color:#efefef;
+	font:9pt ms sans serif, arial, helvetica;
+}
+.tblForm input.btn { 
+	color:#ffffff; 
+	padding:0;
+	border:0;
+	height:18px;
+	font: bold 84% tahoma,helvetica,arial,sans-serif; 
+	width:80px;
+	cursor:pointer;
+	background-image:url(Images/gradbluebg.gif);
+	background-repeat:repeat-x;
+	margin:2px;
+}
+.tblForm input.btnhov { 
+	background-image:url(Images/gradorangebg.gif);
+}
+.divForm {
+	position:absolute;
+	z-index:100;
+	border: thin outset gray;
+	margin-right:0px;
+	padding-right:0px;
+}
+.divForm .divTitle {
+	color:white;
+	background-color:#ffaa59;
+	cursor:pointer;
+	font:7pt tahoma;
+	font-weight:bold;
+}
+.divForm, .radio {
+	background-color:#404040!important; 
+}
+span {
+	display:-moz-inline-box; /* Gecko proprietary */
+	display:inline-block;
+	vertical-align:top; /* Gecko needs this */
+}
+.smlabel {
+	font-weight:normal;
+	font-size:8pt;
+	padding-top:6px;
+}
